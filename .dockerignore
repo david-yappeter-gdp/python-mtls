@@ -1,0 +1,51 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+wheels/
+*.egg-info
+*.egg
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+*.md
+
+# Test files
+test_*.py
+*_test.py
+
+# Certificates (mount as volume instead)
+certs/
+
+# Environment files (copied explicitly in Dockerfile)
+.env.example
+
+# Scripts
+generate-mtls-certs.sh
+
+# Docker files
+Dockerfile*
+docker-compose.yml
+.dockerignore

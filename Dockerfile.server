@@ -1,0 +1,20 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install uv and dependencies
+RUN pip install --no-cache-dir uv && \
+    uv sync --frozen
+
+# Copy application files
+COPY mtls_server.py .
+COPY .env .
+
+# Expose mTLS server port
+EXPOSE 8443
+
+# Run mTLS server
+CMD ["uv", "run", "python", "mtls_server.py"]
