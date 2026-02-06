@@ -4,6 +4,7 @@
 # This script creates a complete set of certificates for testing mutual TLS:
 # - CA certificate and key (Certificate Authority)
 # - Server certificate and key (for the mTLS server)
+# - Proxy certificate and key (for the proxy server)
 # - Client certificate and key (for the mTLS client)
 #
 # Usage:
@@ -64,11 +65,36 @@ EOF
 openssl x509 -req -days $DAYS_VALID -in server.csr -CA ca.crt -CAkey ca.key \
     -set_serial 01 -out server.crt -extfile server.ext 2>/dev/null
 
-# 3. Generate Client Certificate
-echo "Step 5/6: Generating client private key..."
+# 3. Generate Proxy Server Certificate
+echo "Step 5/8: Generating proxy server private key..."
+openssl genrsa -out proxy.key 4096 2>/dev/null
+
+echo "Step 6/8: Generating proxy server certificate..."
+openssl req -new -key proxy.key -out proxy.csr \
+    -subj "/C=US/ST=California/L=San Francisco/O=GLChat Test/OU=Testing/CN=localhost" \
+    2>/dev/null
+
+# Create proxy certificate extensions file
+cat > proxy.ext << EOF
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+DNS.2 = 127.0.0.1
+IP.1 = 127.0.0.1
+EOF
+
+openssl x509 -req -days $DAYS_VALID -in proxy.csr -CA ca.crt -CAkey ca.key \
+    -set_serial 03 -out proxy.crt -extfile proxy.ext 2>/dev/null
+
+# 4. Generate Client Certificate
+echo "Step 7/8: Generating client private key..."
 openssl genrsa -out client.key 4096 2>/dev/null
 
-echo "Step 6/6: Generating client certificate..."
+echo "Step 8/8: Generating client certificate..."
 openssl req -new -key client.key -out client.csr \
     -subj "/C=US/ST=California/L=San Francisco/O=GLChat Test/OU=Testing/CN=GLChat Test Client" \
     2>/dev/null
@@ -77,7 +103,7 @@ openssl x509 -req -days $DAYS_VALID -in client.csr -CA ca.crt -CAkey ca.key \
     -set_serial 02 -out client.crt 2>/dev/null
 
 # Cleanup CSR files
-rm -f server.csr client.csr server.ext
+rm -f server.csr proxy.csr client.csr server.ext proxy.ext
 
 echo ""
 echo "=========================================="
@@ -89,6 +115,8 @@ echo "  📄 ca.crt       - CA certificate (for verification)"
 echo "  🔑 ca.key       - CA private key"
 echo "  📄 server.crt   - Server certificate"
 echo "  🔑 server.key   - Server private key"
+echo "  📄 proxy.crt    - Proxy server certificate"
+echo "  🔑 proxy.key    - Proxy server private key"
 echo "  📄 client.crt   - Client certificate"
 echo "  🔑 client.key   - Client private key"
 echo ""

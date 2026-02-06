@@ -35,7 +35,7 @@ docker run -d \
   -v $(pwd)/certs:/app/certs \
   mtls-server
 
-# 3. Run proxy server
+# 3. Run proxy server (HTTPS)
 docker run -d \
   --name mtls-proxy \
   --network mtls-network \
@@ -69,11 +69,13 @@ services:
       context: .
       dockerfile: Dockerfile.proxy
     ports:
-      - "8080:8080"
+      - "8080:8080"  # HTTPS proxy server
     volumes:
       - ./certs:/app/certs
     environment:
       - MTLS_SERVER_HOST=mtls-server
+      - MTLS_PROXY_CERT=./certs/proxy.crt
+      - MTLS_PROXY_KEY=./certs/proxy.key
     depends_on:
       - mtls-server
     networks:
@@ -100,11 +102,14 @@ docker-compose down
 ## Test Deployment
 
 ```bash
-# Test proxy endpoints
-curl http://localhost:8080/
-curl http://localhost:8080/health
-curl http://localhost:8080/secure
-curl http://localhost:8080/no-cert
+# Test proxy endpoints (HTTPS with self-signed certs)
+curl --insecure https://localhost:8080/
+curl --insecure https://localhost:8080/health
+curl --insecure https://localhost:8080/secure
+curl --insecure https://localhost:8080/no-cert
+
+# Or verify with CA certificate
+curl --cacert certs/ca.crt https://localhost:8080/health
 ```
 
 ## Environment Variables
@@ -112,10 +117,29 @@ curl http://localhost:8080/no-cert
 Configure via `.env` file (copied into images during build):
 
 ```bash
+# mTLS Server certificates
 MTLS_SERVER_CERT=./certs/server.crt
 MTLS_SERVER_KEY=./certs/server.key
 MTLS_CA_CERT=./certs/ca.crt
+
+# Proxy Server certificates (HTTPS)
+MTLS_PROXY_CERT=./certs/proxy.crt
+MTLS_PROXY_KEY=./certs/proxy.key
+
+# Client certificates (for proxy to mTLS server)
 MTLS_CLIENT_CERT=./certs/client.crt
 MTLS_CLIENT_KEY=./certs/client.key
+
+# Optional: Allow connections without client certs
 MTLS_OPTIONAL_CLIENT_CERT=false
 ```
+
+## Certificate Generation
+
+The `generate-mtls-certs.sh` script now generates:
+- CA certificate and key
+- Server certificate and key (for mTLS server)
+- **Proxy certificate and key (for HTTPS proxy server)**
+- Client certificate and key (for proxy → mTLS server communication)
+
+All certificates are signed by the same CA for trust chain validation.

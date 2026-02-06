@@ -21,6 +21,7 @@ import argparse
 import asyncio
 import json
 import os
+import ssl
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,9 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Constants
+CERT_GENERATION_HELP = "Please run: ./generate-mtls-certs.sh"
 
 # Response models matching the mTLS server
 class ServerInfoResponse(BaseModel):
@@ -264,6 +268,8 @@ def run_proxy_server(  # noqa: PLR0913
     port: int = 8080,
     mtls_host: str = "localhost",
     mtls_port: int = 8443,
+    proxy_cert: str = "proxy.crt",
+    proxy_key: str = "proxy.key",
     client_cert: str = "client.crt",
     client_key: str = "client.key",
     ca_cert: str = "ca.crt",
@@ -276,12 +282,24 @@ def run_proxy_server(  # noqa: PLR0913
         port (int): Proxy server port. Defaults to 8080.
         mtls_host (str): mTLS server host. Defaults to "localhost".
         mtls_port (int): mTLS server port. Defaults to 8443.
+        proxy_cert (str): Path to proxy server certificate. Defaults to "proxy.crt".
+        proxy_key (str): Path to proxy server key. Defaults to "proxy.key".
         client_cert (str): Path to client certificate. Defaults to "client.crt".
         client_key (str): Path to client key. Defaults to "client.key".
         ca_cert (str): Path to CA certificate. Defaults to "ca.crt".
         use_mtls (bool): Whether to use mTLS for backend connection. Defaults to True.
     """
     try:
+        # Verify proxy certificates exist
+        if not os.path.exists(proxy_cert):
+            print(f"❌ Error: Proxy certificate not found: {proxy_cert}")
+            print(CERT_GENERATION_HELP)
+            return
+        if not os.path.exists(proxy_key):
+            print(f"❌ Error: Proxy key not found: {proxy_key}")
+            print(CERT_GENERATION_HELP)
+            return
+
         # Create client for backend communication
         mtls_base_url = f"https://{mtls_host}:{mtls_port}"
         
@@ -311,30 +329,48 @@ def run_proxy_server(  # noqa: PLR0913
             timeout=10.0,
         )
 
-        # Create HTTP server (no mTLS required for clients)
+        # Create HTTPS server with SSL/TLS
         server = HTTPServer((host, port), ProxyRequestHandler)
+
+        # Configure SSL context for the proxy server
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+        ssl_context.load_cert_chain(certfile=proxy_cert, keyfile=proxy_key)
+
+        # Wrap the socket with SSL
+        server.socket = ssl_context.wrap_socket(server.socket, server_side=True)
+
+        print(f"\n🔒 HTTPS Proxy Server started on https://{host}:{port}")
+        print(f"📡 Forwarding to mTLS backend: https://{mtls_host}:{mtls_port}")
+        print(f"🔐 Using mTLS: {use_mtls}")
+        print("\nProxy server is ready to accept HTTPS connections...\n")
 
         # Start serving
         server.serve_forever()
 
     except FileNotFoundError as e:
-        pass
+        print(f"\n❌ Error: Certificate file not found: {e}")
+        print(CERT_GENERATION_HELP)
     except KeyboardInterrupt:
-        pass
+        print("\n\n🛑 Proxy server stopped")
     except Exception as e:
-        pass
+        print(f"\n❌ Error starting proxy server: {e}")
 
 
 def main() -> None:
     """Main entry point."""
     # Get certificate paths from environment variables or use defaults
     script_dir = Path(__file__).parent
-    default_cert_dir = script_dir / "mtls-certs"
+    default_cert_dir = script_dir / "certs"
 
+    default_proxy_cert = str(default_cert_dir / "proxy.crt")
+    default_proxy_key = str(default_cert_dir / "proxy.key")
     default_client_cert = str(default_cert_dir / "client.crt")
     default_client_key = str(default_cert_dir / "client.key")
     default_ca_cert = str(default_cert_dir / "ca.crt")
 
+    proxy_cert_path = os.getenv("MTLS_PROXY_CERT", default_proxy_cert)
+    proxy_key_path = os.getenv("MTLS_PROXY_KEY", default_proxy_key)
     client_cert_path = os.getenv("MTLS_CLIENT_CERT", default_client_cert)
     client_key_path = os.getenv("MTLS_CLIENT_KEY", default_client_key)
     ca_cert_path = os.getenv("MTLS_CA_CERT", default_ca_cert)
@@ -343,11 +379,21 @@ def main() -> None:
     # If the backend server has MTLS_OPTIONAL_CLIENT_CERT=true, we can connect without certs
     optional_mtls = os.getenv("MTLS_OPTIONAL_CLIENT_CERT", "false").lower() in ("true", "1", "yes")
 
-    parser = argparse.ArgumentParser(description="Proxy server for mTLS backend")
+    parser = argparse.ArgumentParser(description="HTTPS Proxy server for mTLS backend")
     parser.add_argument("--host", default="localhost", help="Proxy server host (default: localhost)")
     parser.add_argument("--port", type=int, default=8080, help="Proxy server port (default: 8080)")
     parser.add_argument("--mtls-host", default="localhost", help="mTLS server host (default: localhost)")
     parser.add_argument("--mtls-port", type=int, default=8443, help="mTLS server port (default: 8443)")
+    parser.add_argument(
+        "--proxy-cert",
+        default=proxy_cert_path,
+        help=f"Proxy server certificate path (default: {proxy_cert_path})",
+    )
+    parser.add_argument(
+        "--proxy-key",
+        default=proxy_key_path,
+        help=f"Proxy server key path (default: {proxy_key_path})",
+    )
     parser.add_argument(
         "--client-cert",
         default=client_cert_path,
@@ -371,6 +417,8 @@ def main() -> None:
         port=args.port,
         mtls_host=args.mtls_host,
         mtls_port=args.mtls_port,
+        proxy_cert=args.proxy_cert,
+        proxy_key=args.proxy_key,
         client_cert=args.client_cert,
         client_key=args.client_key,
         ca_cert=args.ca_cert,

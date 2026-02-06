@@ -23,10 +23,16 @@ make test-curl
 Configure via `.env` file:
 
 ```bash
-# Certificate paths
+# Server certificate paths
 MTLS_SERVER_CERT=./certs/server.crt
 MTLS_SERVER_KEY=./certs/server.key
 MTLS_CA_CERT=./certs/ca.crt
+
+# Proxy server certificate paths
+MTLS_PROXY_CERT=./certs/proxy.crt
+MTLS_PROXY_KEY=./certs/proxy.key
+
+# Client certificate paths
 MTLS_CLIENT_CERT=./certs/client.crt
 MTLS_CLIENT_KEY=./certs/client.key
 
@@ -41,6 +47,8 @@ MTLS_OPTIONAL_CLIENT_CERT=false
 | `MTLS_SERVER_CERT` | Server certificate path | `./certs/server.crt` |
 | `MTLS_SERVER_KEY` | Server private key path | `./certs/server.key` |
 | `MTLS_CA_CERT` | CA certificate path | `./certs/ca.crt` |
+| `MTLS_PROXY_CERT` | Proxy server certificate path | `./certs/proxy.crt` |
+| `MTLS_PROXY_KEY` | Proxy server private key path | `./certs/proxy.key` |
 | `MTLS_CLIENT_CERT` | Client certificate path | `./certs/client.crt` |
 | `MTLS_CLIENT_KEY` | Client private key path | `./certs/client.key` |
 | `MTLS_OPTIONAL_CLIENT_CERT` | Make client certs optional | `false` |
@@ -65,12 +73,12 @@ MTLS_OPTIONAL_CLIENT_CERT=false
 
 ```
 Client (curl) → Proxy Server (port 8080) → mTLS Server (port 8443)
-                 [HTTP]                      [HTTPS + mTLS]
+                 [HTTPS]                     [HTTPS + mTLS]
 ```
 
 - **mTLS Server**: Requires client certificates (configurable)
-- **Proxy Server**: Regular HTTP, handles mTLS to backend
-- **Clients**: Connect to proxy without certificates
+- **Proxy Server**: HTTPS with its own certificate, handles mTLS to backend
+- **Clients**: Connect to proxy via HTTPS (no client cert required)
 
 ## API Endpoints
 
@@ -84,23 +92,26 @@ Client (curl) → Proxy Server (port 8080) → mTLS Server (port 8443)
 ## Example Usage
 
 ```bash
-# Server info
-curl http://localhost:8080/
+# Server info (use --insecure for self-signed certs)
+curl --insecure https://localhost:8080/
 
 # Health check
-curl http://localhost:8080/health
+curl --insecure https://localhost:8080/health
 
 # Test without certificates
-curl http://localhost:8080/no-cert
+curl --insecure https://localhost:8080/no-cert
+
+# Or verify with CA certificate
+curl --cacert certs/ca.crt https://localhost:8080/health
 ```
 
 ## Files
 
 - `mtls_server.py` - mTLS server implementation
-- `proxy_server.py` - HTTP proxy to mTLS backend
+- `proxy_server.py` - HTTPS proxy to mTLS backend
 - `mtls_http_client.py` - mTLS HTTP client
 - `http_client.py` - Base HTTP client
-- `generate-mtls-certs.sh` - Certificate generation script
+- `generate-mtls-certs.sh` - Certificate generation script (includes proxy certs)
 - `Makefile` - Build and test commands
 - `.env` - Environment configuration
 
