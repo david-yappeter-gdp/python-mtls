@@ -338,10 +338,10 @@ def main() -> None:
     client_cert_path = os.getenv("MTLS_CLIENT_CERT", default_client_cert)
     client_key_path = os.getenv("MTLS_CLIENT_KEY", default_client_key)
     ca_cert_path = os.getenv("MTLS_CA_CERT", default_ca_cert)
-    
+
     # Get optional client cert setting from environment variable
     # If the backend server has MTLS_OPTIONAL_CLIENT_CERT=true, we can connect without certs
-    optional_mtls = os.getenv("MTLS_OPTIONAL_CLIENT_CERT", "false").lower() not in ("true", "1", "yes")
+    optional_mtls = os.getenv("MTLS_OPTIONAL_CLIENT_CERT", "false").lower() in ("true", "1", "yes")
 
     parser = argparse.ArgumentParser(description="Proxy server for mTLS backend")
     parser.add_argument("--host", default="localhost", help="Proxy server host (default: localhost)")
