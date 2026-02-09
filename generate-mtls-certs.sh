@@ -59,6 +59,9 @@ subjectAltName = @alt_names
 [alt_names]
 DNS.1 = localhost
 DNS.2 = 127.0.0.1
+DNS.3 = 0.0.0.0
+DNS.4 = mtls-proxy
+DNS.5 = mtls-server
 IP.1 = 127.0.0.1
 EOF
 
@@ -84,6 +87,9 @@ subjectAltName = @alt_names
 [alt_names]
 DNS.1 = localhost
 DNS.2 = 127.0.0.1
+DNS.3 = 0.0.0.0
+DNS.4 = mtls-proxy
+DNS.5 = mtls-server
 IP.1 = 127.0.0.1
 EOF
 
