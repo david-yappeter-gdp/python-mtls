@@ -20,6 +20,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import logging
 import os
 import ssl
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -34,6 +35,14 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 # Constants
 CERT_GENERATION_HELP = "Please run: ./generate-mtls-certs.sh"
@@ -134,12 +143,16 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     async def _proxy_get_request(self) -> None:
         """Proxy GET request to mTLS server."""
+        logger.info("📥 [GET] %s - Client: %s:%s", self.path, self.client_address[0], self.client_address[1])
         try:
             if self.path == "/":
+                logger.info("🔄 Forwarding GET / to mTLS server...")
                 response = await self.mtls_client.get("/", ServerInfoResponse)
             elif self.path == "/health":
+                logger.info("🔄 Forwarding GET /health to mTLS server...")
                 response = await self.mtls_client.get("/health", HealthResponse)
             elif self.path == "/secure":
+                logger.info("🔄 Forwarding GET /secure to mTLS server...")
                 response = await self.mtls_client.get("/secure", SecureDataResponse)
             elif self.path == "/no-cert":
                 # Test endpoint that hits mTLS server WITHOUT certificates
@@ -152,6 +165,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                         self._send_error_response("No Response", "mTLS server returned no data")
                 except Exception as cert_error:
                     # Expected to fail - return the error details
+                    logger.info("✅ No-cert test failed as expected: %s", type(cert_error).__name__)
                     self._send_json_response(
                         {
                             "endpoint": "/test-no-cert",
@@ -164,78 +178,104 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                     )
                 return
             else:
+                logger.warning("❌ Unknown endpoint: %s", self.path)
                 self._send_error_response("Not Found", f"Unknown endpoint: {self.path}", status_code=404)
                 return
 
             if response:
+                logger.info("✅ [GET] %s - Success (200)", self.path)
                 self._send_json_response(response)
             else:
+                logger.warning("⚠️  [GET] %s - No response from mTLS server", self.path)
                 self._send_error_response("No Response", "mTLS server returned no data")
 
         except Exception as e:
+            logger.error("❌ [GET] %s - Error: %s", self.path, e)
             self._send_error_response("Proxy Error", str(e))
 
     async def _proxy_post_request(self) -> None:
         """Proxy POST request to mTLS server."""
+        logger.info("📥 [POST] %s - Client: %s:%s", self.path, self.client_address[0], self.client_address[1])
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)
 
             try:
                 data = json.loads(body.decode()) if body else {}
+                logger.info("📦 Request body size: %d bytes", content_length)
             except json.JSONDecodeError:
+                logger.error("❌ [POST] %s - Invalid JSON in request body", self.path)
                 self._send_error_response("Invalid JSON", "Request body is not valid JSON", status_code=400)
                 return
 
             if self.path == "/echo":
+                logger.info("🔄 Forwarding POST /echo to mTLS server...")
                 response = await self.mtls_client.post("/echo", EchoResponse, json_data=data)
                 if response:
+                    logger.info("✅ [POST] %s - Success (200)", self.path)
                     self._send_json_response(response)
                 else:
+                    logger.warning("⚠️  [POST] %s - No response from mTLS server", self.path)
                     self._send_error_response("No Response", "mTLS server returned no data")
             else:
+                logger.warning("❌ Unknown endpoint: %s", self.path)
                 self._send_error_response("Not Found", f"Unknown endpoint: {self.path}", status_code=404)
 
         except Exception as e:
+            logger.error("❌ [POST] %s - Error: %s", self.path, e)
             self._send_error_response("Proxy Error", str(e))
 
     async def _proxy_put_request(self) -> None:
         """Proxy PUT request to mTLS server."""
+        logger.info("📥 [PUT] %s - Client: %s:%s", self.path, self.client_address[0], self.client_address[1])
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)
 
             try:
                 data = json.loads(body.decode()) if body else {}
+                logger.info("📦 Request body size: %d bytes", content_length)
             except json.JSONDecodeError:
+                logger.error("❌ [PUT] %s - Invalid JSON in request body", self.path)
                 self._send_error_response("Invalid JSON", "Request body is not valid JSON", status_code=400)
                 return
 
             if self.path.startswith("/resource/"):
+                logger.info("🔄 Forwarding PUT %s to mTLS server...", self.path)
                 response = await self.mtls_client.put(self.path, ResourceResponse, json_data=data)
                 if response:
+                    logger.info("✅ [PUT] %s - Success (200)", self.path)
                     self._send_json_response(response)
                 else:
+                    logger.warning("⚠️  [PUT] %s - No response from mTLS server", self.path)
                     self._send_error_response("No Response", "mTLS server returned no data")
             else:
+                logger.warning("❌ Unknown endpoint: %s", self.path)
                 self._send_error_response("Not Found", f"Unknown endpoint: {self.path}", status_code=404)
 
         except Exception as e:
+            logger.error("❌ [PUT] %s - Error: %s", self.path, e)
             self._send_error_response("Proxy Error", str(e))
 
     async def _proxy_delete_request(self) -> None:
         """Proxy DELETE request to mTLS server."""
+        logger.info("📥 [DELETE] %s - Client: %s:%s", self.path, self.client_address[0], self.client_address[1])
         try:
             if self.path.startswith("/resource/"):
+                logger.info("🔄 Forwarding DELETE %s to mTLS server...", self.path)
                 response = await self.mtls_client.delete(self.path, ResourceResponse)
                 if response:
+                    logger.info("✅ [DELETE] %s - Success (200)", self.path)
                     self._send_json_response(response)
                 else:
+                    logger.warning("⚠️  [DELETE] %s - No response from mTLS server", self.path)
                     self._send_error_response("No Response", "mTLS server returned no data")
             else:
+                logger.warning("❌ Unknown endpoint: %s", self.path)
                 self._send_error_response("Not Found", f"Unknown endpoint: {self.path}", status_code=404)
 
         except Exception as e:
+            logger.error("❌ [DELETE] %s - Error: %s", self.path, e)
             self._send_error_response("Proxy Error", str(e))
 
     def do_GET(self) -> None:
@@ -290,21 +330,36 @@ def run_proxy_server(  # noqa: PLR0913
         use_mtls (bool): Whether to use mTLS for backend connection. Defaults to True.
     """
     try:
+        logger.info("="*60)
+        logger.info("🚀 Starting HTTPS Proxy Server...")
+        logger.info("="*60)
+        
         # Verify proxy certificates exist
+        logger.info("📋 Checking proxy server certificates...")
         if not os.path.exists(proxy_cert):
-            print(f"❌ Error: Proxy certificate not found: {proxy_cert}")
-            print(CERT_GENERATION_HELP)
+            logger.error("❌ Error: Proxy certificate not found: %s", proxy_cert)
+            logger.error(CERT_GENERATION_HELP)
             return
+        logger.info("✅ Proxy certificate found: %s", proxy_cert)
+        
         if not os.path.exists(proxy_key):
-            print(f"❌ Error: Proxy key not found: {proxy_key}")
-            print(CERT_GENERATION_HELP)
+            logger.error("❌ Error: Proxy key not found: %s", proxy_key)
+            logger.error(CERT_GENERATION_HELP)
             return
+        logger.info("✅ Proxy key found: %s", proxy_key)
 
         # Create client for backend communication
         mtls_base_url = f"https://{mtls_host}:{mtls_port}"
+        logger.info("🔧 Configuring backend connection...")
+        logger.info("   Backend URL: %s", mtls_base_url)
         
         if use_mtls:
             # Create mTLS client with certificates
+            logger.info("🔐 Setting up mTLS client with certificates...")
+            logger.info("   Client cert: %s", client_cert)
+            logger.info("   Client key: %s", client_key)
+            logger.info("   CA cert: %s", ca_cert)
+            
             ProxyRequestHandler.mtls_client = create_http_client_with_optional_mtls(
                 mtls_enabled=True,
                 base_url=mtls_base_url,
@@ -313,48 +368,59 @@ def run_proxy_server(  # noqa: PLR0913
                 ca_cert_path=ca_cert,
                 timeout=10.0,
             )
+            logger.info("✅ mTLS client configured successfully")
         else:
             # Create regular HTTPS client without certificates
+            logger.info("🔓 Setting up regular HTTPS client (no mTLS)...")
             ProxyRequestHandler.mtls_client = create_http_client_with_optional_mtls(
                 mtls_enabled=False,
                 base_url=mtls_base_url,
                 timeout=10.0,
             )
+            logger.info("✅ HTTPS client configured successfully")
 
         # Create non-mTLS client for testing /no-cert endpoint
         # This will fail when connecting to mTLS server, demonstrating the requirement
+        logger.info("🧪 Setting up test client (without certificates)...")
         ProxyRequestHandler.no_cert_client = create_http_client_with_optional_mtls(
             mtls_enabled=False,
             base_url=mtls_base_url,
             timeout=10.0,
         )
+        logger.info("✅ Test client configured successfully")
 
         # Create HTTPS server with SSL/TLS
+        logger.info("🌐 Creating HTTPS server...")
         server = HTTPServer((host, port), ProxyRequestHandler)
 
         # Configure SSL context for the proxy server
+        logger.info("🔒 Configuring SSL/TLS context...")
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
         ssl_context.load_cert_chain(certfile=proxy_cert, keyfile=proxy_key)
+        logger.info("   Minimum TLS version: TLSv1.2")
 
         # Wrap the socket with SSL
         server.socket = ssl_context.wrap_socket(server.socket, server_side=True)
+        logger.info("✅ SSL/TLS configured successfully")
 
-        print(f"\n🔒 HTTPS Proxy Server started on https://{host}:{port}")
-        print(f"📡 Forwarding to mTLS backend: https://{mtls_host}:{mtls_port}")
-        print(f"🔐 Using mTLS: {use_mtls}")
-        print("\nProxy server is ready to accept HTTPS connections...\n")
+        logger.info("="*60)
+        logger.info("🔒 HTTPS Proxy Server started on https://%s:%d", host, port)
+        logger.info("📡 Forwarding to mTLS backend: https://%s:%d", mtls_host, mtls_port)
+        logger.info("🔐 Using mTLS: %s", use_mtls)
+        logger.info("="*60)
+        logger.info("✅ Proxy server is ready to accept HTTPS connections...")
 
         # Start serving
         server.serve_forever()
 
     except FileNotFoundError as e:
-        print(f"\n❌ Error: Certificate file not found: {e}")
-        print(CERT_GENERATION_HELP)
+        logger.error("❌ Error: Certificate file not found: %s", e)
+        logger.error(CERT_GENERATION_HELP)
     except KeyboardInterrupt:
-        print("\n\n🛑 Proxy server stopped")
+        logger.info("🛑 Proxy server stopped")
     except Exception as e:
-        print(f"\n❌ Error starting proxy server: {e}")
+        logger.error("❌ Error starting proxy server: %s", e)
 
 
 def main() -> None:
@@ -379,11 +445,15 @@ def main() -> None:
     # If the backend server has MTLS_OPTIONAL_CLIENT_CERT=true, we can connect without certs
     optional_mtls = os.getenv("MTLS_OPTIONAL_CLIENT_CERT", "false").lower() in ("true", "1", "yes")
 
+    # Get backend server configuration from environment variables
+    mtls_server_host = os.getenv("MTLS_SERVER_HOST", "localhost")
+    mtls_server_port = int(os.getenv("MTLS_SERVER_PORT", "8443"))
+
     parser = argparse.ArgumentParser(description="HTTPS Proxy server for mTLS backend")
     parser.add_argument("--host", default="localhost", help="Proxy server host (default: localhost)")
     parser.add_argument("--port", type=int, default=8080, help="Proxy server port (default: 8080)")
-    parser.add_argument("--mtls-host", default="localhost", help="mTLS server host (default: localhost)")
-    parser.add_argument("--mtls-port", type=int, default=8443, help="mTLS server port (default: 8443)")
+    parser.add_argument("--mtls-host", default=mtls_server_host, help=f"mTLS server host (default: {mtls_server_host})")
+    parser.add_argument("--mtls-port", type=int, default=mtls_server_port, help=f"mTLS server port (default: {mtls_server_port})")
     parser.add_argument(
         "--proxy-cert",
         default=proxy_cert_path,

@@ -38,6 +38,7 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
 import ssl
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -49,6 +50,14 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 
 class MTLSRequestHandler(BaseHTTPRequestHandler):
@@ -195,6 +204,7 @@ class MTLSRequestHandler(BaseHTTPRequestHandler):
         """
         cert_info = self._get_client_cert_info()
         client_cn = cert_info.get("subject", {}).get("commonName", "Unknown")
+        logger.info("%s %s - Client: %s - %s", self.command, self.path, client_cn, format % args)
 
 
 def create_ssl_context(
@@ -215,25 +225,37 @@ def create_ssl_context(
         FileNotFoundError: If certificate files don't exist.
     """
     # Validate certificate files
+    logger.info("🔐 Validating SSL/TLS certificates...")
     for cert_path, name in [(server_cert, "Server cert"), (server_key, "Server key"), (ca_cert, "CA cert")]:
         if not Path(cert_path).exists():
+            logger.error("❌ Error: %s not found: %s", name, cert_path)
             raise FileNotFoundError(f"{name} not found: {cert_path}")
+        logger.info("✅ %s: %s", name, cert_path)
 
     # Create SSL context
+    logger.info("🔧 Configuring SSL context...")
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
+    logger.info("   Minimum TLS version: %s", context.minimum_version.name)
 
     # Load server certificate and key
+    logger.info("📜 Loading server certificate and key...")
     context.load_cert_chain(certfile=server_cert, keyfile=server_key)
+    logger.info("✅ Server certificate loaded successfully")
 
     # Load CA certificate for client verification
+    logger.info("🔑 Loading CA certificate for client verification...")
     context.load_verify_locations(cafile=ca_cert)
+    logger.info("✅ CA certificate loaded successfully")
 
     # Require client certificate
+    logger.info("🔒 Configuring client certificate verification...")
     if require_client_cert:
         context.verify_mode = ssl.CERT_REQUIRED
+        logger.info("✅ Client certificate verification: REQUIRED (mTLS enabled)")
     else:
         context.verify_mode = ssl.CERT_NONE
+        logger.warning("⚠️  Client certificate verification: OPTIONAL (mTLS disabled)")
 
     return context
 
@@ -257,22 +279,42 @@ def run_server(  # noqa: PLR0913
         require_client_cert (bool): Whether to require client certificates. Defaults to True.
     """
     try:
+        logger.info("="*60)
+        logger.info("🚀 Starting mTLS Server")
+        logger.info("="*60)
+        
         # Create SSL context
         ssl_context = create_ssl_context(server_cert, server_key, ca_cert, require_client_cert)
 
         # Create HTTP server
+        logger.info("🌐 Creating HTTPS server...")
         server = HTTPServer((host, port), MTLSRequestHandler)
         server.socket = ssl_context.wrap_socket(server.socket, server_side=True)
+        logger.info("✅ Server created successfully")
+
+        logger.info("="*60)
+        logger.info("✨ mTLS Server is running on https://%s:%d", host, port)
+        logger.info("="*60)
+        logger.info("Available endpoints:")
+        logger.info("  GET  /          - Server info and client cert details")
+        logger.info("  GET  /health    - Health check endpoint")
+        logger.info("  GET  /secure    - Secure data endpoint")
+        logger.info("  POST /echo      - Echo endpoint")
+        logger.info("  PUT  /resource/:id - Update resource")
+        logger.info("  DELETE /resource/:id - Delete resource")
+        logger.info("💡 Press Ctrl+C to stop the server")
+        logger.info("="*60)
 
         # Start serving
         server.serve_forever()
 
     except FileNotFoundError as e:
-        pass
+        logger.error("❌ Error: %s", e)
+        logger.error("Please run: ./generate-mtls-certs.sh")
     except KeyboardInterrupt:
-        pass
+        logger.info("🛑 Server stopped by user")
     except Exception as e:
-        pass
+        logger.error("❌ Error starting server: %s", e)
 
 def main() -> None:
     """Main entry point."""
