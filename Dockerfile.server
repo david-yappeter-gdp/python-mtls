@@ -11,10 +11,9 @@ RUN pip install --no-cache-dir uv && \
 
 # Copy application files
 COPY mtls_server.py .
-COPY .env .
 
 # Expose mTLS server port
 EXPOSE 8443
 
 # Run mTLS server
-CMD ["uv", "run", "python", "mtls_server.py"]
+CMD ["uv", "run", "python", "mtls_server.py", "--host", "0.0.0.0"]

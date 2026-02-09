@@ -1,0 +1,53 @@
+services:
+  mtls-server:
+    image: mtls-server
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./certs:/app/certs:ro
+    environment:
+      - MTLS_SERVER_CERT=./certs/server.crt
+      - MTLS_SERVER_KEY=./certs/server.key
+      - MTLS_CA_CERT=./certs/ca.crt
+      - MTLS_OPTIONAL_CLIENT_CERT=false
+    networks:
+      - mtls-network
+
+  mtls-proxy:
+    image: mtls-proxy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./certs:/app/certs:ro
+    environment:
+      - MTLS_SERVER_HOST=mtls-server
+      - MTLS_SERVER_PORT=8443
+      - MTLS_PROXY_CERT=./certs/proxy.crt
+      - MTLS_PROXY_KEY=./certs/proxy.key
+      - MTLS_CLIENT_CERT=./certs/proxy.crt
+      - MTLS_CLIENT_KEY=./certs/proxy.key
+      - MTLS_CA_CERT=./certs/ca.crt
+    depends_on:
+      - mtls-server
+    networks:
+      - mtls-network
+
+  mtls-fe:
+    image: mtls-fe
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./certs:/app/certs:ro
+    environment:
+      - PROXY_SERVER_URL=https://mtls-proxy:8080
+      - PROXY_CA_CERT_PATH=/app/certs/ca.crt
+      - SKIP_CERT_VERIFICATION=false
+      - NODE_EXTRA_CA_CERTS=/app/certs/ca.crt
+    depends_on:
+      - mtls-proxy
+    networks:
+      - mtls-network
+
+networks:
+  mtls-network:
+    driver: bridge

@@ -105,6 +105,25 @@ curl --insecure https://localhost:8080/no-cert
 curl --cacert certs/ca.crt https://localhost:8080/health
 ```
 
+## Next.js Client Application
+
+A sample Next.js application is included to demonstrate server-side HTTPS communication with the proxy server.
+
+```bash
+# Navigate to Next.js app
+cd nextjs-app
+
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+```
+
+Visit [http://localhost:3000](http://localhost:3000) to see the application.
+
+See [nextjs-app/README.md](nextjs-app/README.md) for detailed documentation.
+
 ## Files
 
 - `mtls_server.py` - mTLS server implementation
@@ -112,6 +131,7 @@ curl --cacert certs/ca.crt https://localhost:8080/health
 - `mtls_http_client.py` - mTLS HTTP client
 - `http_client.py` - Base HTTP client
 - `generate-mtls-certs.sh` - Certificate generation script (includes proxy certs)
+- `nextjs-app/` - Next.js client application example
 - `Makefile` - Build and test commands
 - `.env` - Environment configuration
 

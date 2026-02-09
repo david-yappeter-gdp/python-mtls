@@ -1,0 +1,52 @@
+# Multi-stage build for Next.js application with mTLS support
+FROM node:20-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+# Copy package files
+COPY nextjs-app/package.json nextjs-app/package-lock.json* ./
+RUN npm ci
+
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY nextjs-app/ .
+
+# Build Next.js application
+RUN npm run build
+
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Create a non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy built application
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy package.json for node server
+COPY --from=builder /app/package.json ./package.json
+
+# Create certs directory for mounting
+RUN mkdir -p /app/certs && chown nextjs:nodejs /app/certs
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Set NODE_EXTRA_CA_CERTS to use custom CA certificate
+# This will be set at runtime via environment variable or docker-compose
+ENV NODE_EXTRA_CA_CERTS=/app/certs/ca.crt
+
+CMD ["node", "server.js"]

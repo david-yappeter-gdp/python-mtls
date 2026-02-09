@@ -1,28 +1,33 @@
 # Python-generated files
-__pycache__/
-*.py[oc]
+__pycache__
+*.pyc
 *.pyo
 *.pyd
 .Python
-build/
-dist/
-wheels/
-*.egg-info
+*.so
 *.egg
-
-# Virtual environments
+*.egg-info
+dist
+build
+.env
 .venv
 venv/
 ENV/
-env/
+.git
+.gitignore
+*.md
+!README.md
 
-# IDE
+# Next.js specific (for Dockerfile.nextjs)
+nextjs-app/node_modules
+nextjs-app/.next
+nextjs-app/npm-debug.log
+nextjs-app/.env*.local
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
 # Git
 .git/
 .gitignore
