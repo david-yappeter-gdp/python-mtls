@@ -166,6 +166,18 @@ PROXY_SERVER_URL=https://mtls-proxy:8080
 PROXY_CA_CERT_PATH=/app/certs/ca.crt
 SKIP_CERT_VERIFICATION=false
 NODE_EXTRA_CA_CERTS=/app/certs/ca.crt
+
+# Next.js HTTPS server certificates
+NEXTJS_CERT_PATH=/app/certs/proxy.crt
+NEXTJS_KEY_PATH=/app/certs/proxy.key
+NEXTJS_CA_CERT_PATH=/app/certs/ca.crt
+
+# Optional: Enable client certificate verification for Next.js server
+NEXTJS_REQUEST_CERT=true
+NEXTJS_REJECT_UNAUTHORIZED=true
+
+# Server hostname (use 0.0.0.0 in Docker to accept external connections)
+HOSTNAME=0.0.0.0
 ```
 
 ## Certificate Generation
@@ -197,13 +209,21 @@ cp .env.local.example .env.local
 # Edit .env.local and set:
 # PROXY_SERVER_URL=https://localhost:8080
 # PROXY_CA_CERT_PATH=../certs/ca.crt
-# SKIP_CERT_VERIFICATION=true  # or false to use CA cert
+# SKIP_CERT_VERIFICATION=false
+# NEXTJS_CERT_PATH=../certs/proxy.crt
+# NEXTJS_KEY_PATH=../certs/proxy.key
+# NEXTJS_CA_CERT_PATH=../certs/ca.crt
 
-# Run in development mode
+# Run in development mode (HTTP)
 npm run dev
+
+# Or run with HTTPS
+npm run dev:https
 ```
 
-The application will be available at [http://localhost:3000](http://localhost:3000).
+The application will be available at:
+- HTTP: [http://localhost:3000](http://localhost:3000) (using `npm run dev`)
+- HTTPS: [https://localhost:3000](https://localhost:3000) (using `npm run dev:https`)
 
 ### Building Next.js Docker Image
 
@@ -230,13 +250,22 @@ To include the Next.js application in your Docker deployment, add it to your `do
       - PROXY_CA_CERT_PATH=/app/certs/ca.crt
       - SKIP_CERT_VERIFICATION=false
       - NODE_EXTRA_CA_CERTS=/app/certs/ca.crt
+      - NEXTJS_CERT_PATH=/app/certs/proxy.crt
+      - NEXTJS_KEY_PATH=/app/certs/proxy.key
+      - NEXTJS_CA_CERT_PATH=/app/certs/ca.crt
+      - NEXTJS_REQUEST_CERT=true
+      - NEXTJS_REJECT_UNAUTHORIZED=true
+      - HOSTNAME=0.0.0.0
     depends_on:
       - mtls-proxy
     networks:
       - mtls-network
 ```
 
-**Important**: The `NODE_EXTRA_CA_CERTS` environment variable tells Node.js to trust the custom CA certificate, which is essential for validating the proxy server's self-signed certificate.
+**Important**: 
+- The `NODE_EXTRA_CA_CERTS` environment variable tells Node.js to trust the custom CA certificate for outgoing requests
+- The `NEXTJS_*` environment variables configure the Next.js server's HTTPS certificates
+- The Next.js server will run with HTTPS on port 3000
 
 ### Complete Docker Compose Example
 
@@ -291,6 +320,12 @@ services:
       - PROXY_CA_CERT_PATH=/app/certs/ca.crt
       - SKIP_CERT_VERIFICATION=false
       - NODE_EXTRA_CA_CERTS=/app/certs/ca.crt
+      - NEXTJS_CERT_PATH=/app/certs/proxy.crt
+      - NEXTJS_KEY_PATH=/app/certs/proxy.key
+      - NEXTJS_CA_CERT_PATH=/app/certs/ca.crt
+      - NEXTJS_REQUEST_CERT=true
+      - NEXTJS_REJECT_UNAUTHORIZED=true
+      - HOSTNAME=0.0.0.0
     depends_on:
       - mtls-proxy
     networks:
@@ -310,8 +345,10 @@ docker-compose up -d
 # View logs
 docker-compose logs -f nextjs-app
 
-# Test the frontend
-curl http://localhost:3000
+# Test the frontend (HTTPS)
+curl --insecure https://localhost:3000
+# Or with CA certificate
+curl --cacert certs/ca.crt https://localhost:3000
 ```
 
 See [nextjs-app/README.md](nextjs-app/README.md) for detailed documentation.

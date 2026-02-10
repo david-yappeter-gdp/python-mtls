@@ -43,6 +43,12 @@ services:
       - PROXY_CA_CERT_PATH=/app/certs/ca.crt
       - SKIP_CERT_VERIFICATION=false
       - NODE_EXTRA_CA_CERTS=/app/certs/ca.crt
+      - NEXTJS_CERT_PATH=/app/certs/proxy.crt
+      - NEXTJS_KEY_PATH=/app/certs/proxy.key
+      - NEXTJS_CA_CERT_PATH=/app/certs/ca.crt
+      - NEXTJS_REQUEST_CERT=true
+      - NEXTJS_REJECT_UNAUTHORIZED=true
+      - HOSTNAME=0.0.0.0
     depends_on:
       - mtls-proxy
     networks:
